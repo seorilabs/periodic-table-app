@@ -1,0 +1,11 @@
+node_modules/
+coverage/
+dist/
+reports/
+*.ait
+*.log
+.DS_Store
+.granite/
+.env
+.env.*
+!.env.example
