@@ -119,6 +119,7 @@ jobs:
           name: periodic-table-ait-bundle
           path: "*.ait"
           if-no-files-found: error
+          retention-days: 3
 
       - name: Deploy to Apps in Toss
         run: |
