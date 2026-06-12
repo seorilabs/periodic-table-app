@@ -27,6 +27,7 @@ jobs:
   deploy:
     name: Build and deploy .ait bundle
     runs-on: seorilabs-rpi-arm64
+    environment: apps-in-toss
 
     env:
       APPS_IN_TOSS_API_KEY: ${{ secrets.APPS_IN_TOSS_API_KEY }}

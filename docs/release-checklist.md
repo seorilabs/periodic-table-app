@@ -13,4 +13,7 @@
 - [ ] 세로 스크린샷 636 x 1048 PNG 최소 3장
 - [ ] 고객센터 전화번호 확정
 - [ ] 로그인, 결제, 광고, 서버 저장, 권한을 사용하지 않는다는 점 확인
-- [ ] `npm run ci:target -- --app periodic-table` 통과
+- [ ] `npm run lint` 통과
+- [ ] `npm run typecheck` 통과
+- [ ] `npm test` 통과
+- [ ] `npm run build` 통과

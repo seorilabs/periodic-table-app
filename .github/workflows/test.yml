@@ -18,7 +18,10 @@ on:
 jobs:
   checks:
     name: Lint, test, and build
-    runs-on: seorilabs-rpi-arm64
+    # Public pull requests must not execute untrusted code on Seorilabs ARC runners.
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'seorilabs-rpi-arm64' }}
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
