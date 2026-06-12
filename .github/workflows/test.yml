@@ -18,7 +18,7 @@ on:
 jobs:
   checks:
     name: Lint, test, and build
-    runs-on: ubuntu-latest
+    runs-on: seorilabs-rpi-arm64
 
     steps:
       - name: Checkout
