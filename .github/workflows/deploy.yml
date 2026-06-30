@@ -1,9 +1,10 @@
 name: Deploy Apps in Toss
 
+# main 병합 자동 배포 제거(쿼터 보호). 배포는 명시적 Release/Tag(v*.*.*) 또는 수동 dispatch.
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       memo:
