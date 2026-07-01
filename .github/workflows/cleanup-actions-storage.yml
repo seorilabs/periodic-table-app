@@ -1,116 +1,30 @@
-name: GitHub Actions 저장소 비우기
+# Actions 스토리지(아티팩트/캐시) 정리 — 수동 dispatch.
+# 이 repo는 PUBLIC — ubuntu-latest로 라우팅.
+name: Cleanup Actions Storage
 
 on:
   workflow_dispatch:
     inputs:
       delete_artifacts:
-        description: "워크플로 artifact를 삭제합니다."
-        required: false
-        default: true
         type: boolean
+        default: true
       delete_caches:
-        description: "Actions cache를 삭제합니다."
-        required: false
+        type: boolean
         default: true
-        type: boolean
       dry_run:
-        description: "삭제하지 않고 대상만 출력합니다."
-        required: false
-        default: false
         type: boolean
+        default: false
 
 permissions:
   actions: write
   contents: read
 
-concurrency:
-  group: cleanup-actions-storage
-  cancel-in-progress: false
-
 jobs:
   cleanup:
-    name: Actions artifacts and caches 삭제
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-      DELETE_ARTIFACTS: ${{ inputs.delete_artifacts }}
-      DELETE_CACHES: ${{ inputs.delete_caches }}
-      DRY_RUN: ${{ inputs.dry_run }}
-
-    steps:
-      - name: Delete workflow artifacts
-        if: env.DELETE_ARTIFACTS == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          rows="$(gh api --paginate "repos/$GH_REPO/actions/artifacts?per_page=100" --jq '.artifacts[] | [.id, .size_in_bytes, .name] | @tsv')"
-          if [ -z "$rows" ]; then
-            echo "No workflow artifacts found."
-            exit 0
-          fi
-
-          count="$(printf '%s\n' "$rows" | awk 'NF { count += 1 } END { print count + 0 }')"
-          bytes="$(printf '%s\n' "$rows" | awk -F '\t' '{ sum += $2 } END { print sum + 0 }')"
-          echo "Found $count workflow artifacts using $bytes bytes."
-
-          deleted=0
-          while IFS=$'\t' read -r artifact_id artifact_size artifact_name; do
-            [ -n "${artifact_id:-}" ] || continue
-            if [ "$DRY_RUN" = "true" ]; then
-              echo "[dry-run] artifact #$artifact_id $artifact_name ($artifact_size bytes)"
-            else
-              echo "Deleting artifact #$artifact_id $artifact_name ($artifact_size bytes)"
-              gh api --method DELETE "repos/$GH_REPO/actions/artifacts/$artifact_id" >/dev/null
-            fi
-            deleted=$((deleted + 1))
-          done <<< "$rows"
-
-          {
-            echo "### Workflow artifacts"
-            echo ""
-            echo "- candidates: $count"
-            echo "- bytes: $bytes"
-            echo "- processed: $deleted"
-            echo "- dry_run: $DRY_RUN"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Delete Actions caches
-        if: env.DELETE_CACHES == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          rows="$(gh api --paginate "repos/$GH_REPO/actions/caches?per_page=100" --jq '.actions_caches[] | [.id, .size_in_bytes, .key] | @tsv')"
-          if [ -z "$rows" ]; then
-            echo "No Actions caches found."
-            exit 0
-          fi
-
-          count="$(printf '%s\n' "$rows" | awk 'NF { count += 1 } END { print count + 0 }')"
-          bytes="$(printf '%s\n' "$rows" | awk -F '\t' '{ sum += $2 } END { print sum + 0 }')"
-          echo "Found $count Actions caches using $bytes bytes."
-
-          deleted=0
-          while IFS=$'\t' read -r cache_id cache_size cache_key; do
-            [ -n "${cache_id:-}" ] || continue
-            if [ "$DRY_RUN" = "true" ]; then
-              echo "[dry-run] cache #$cache_id $cache_key ($cache_size bytes)"
-            else
-              echo "Deleting cache #$cache_id $cache_key ($cache_size bytes)"
-              gh api --method DELETE "repos/$GH_REPO/actions/caches/$cache_id" >/dev/null
-            fi
-            deleted=$((deleted + 1))
-          done <<< "$rows"
-
-          {
-            echo "### Actions caches"
-            echo ""
-            echo "- candidates: $count"
-            echo "- bytes: $bytes"
-            echo "- processed: $deleted"
-            echo "- dry_run: $DRY_RUN"
-          } >> "$GITHUB_STEP_SUMMARY"
+    uses: seorilabs/.github/.github/workflows/cleanup-actions-storage.yml@main
+    secrets: inherit
+    with:
+      delete_artifacts: ${{ inputs.delete_artifacts }}
+      delete_caches: ${{ inputs.delete_caches }}
+      dry_run: ${{ inputs.dry_run }}
+      runs_on: ${{ github.event.repository.private && 'seorilabs-rpi-arm64' || 'ubuntu-latest' }}
