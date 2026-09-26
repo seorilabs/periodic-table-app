@@ -93,7 +93,8 @@ button {
 .search-section,
 .progress-section,
 .action-section,
-.quiz-options {
+.quiz-options,
+.difficulty-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -102,7 +103,8 @@ button {
 .filter-chip,
 .element-tile,
 .result-row,
-.quiz-option {
+.quiz-option,
+.difficulty-card {
   border: 0;
   cursor: pointer;
 }
@@ -367,6 +369,42 @@ button {
   display: block;
   color: #6b7684;
   font-size: 13px;
+  white-space: nowrap;
+}
+
+.difficulty-card {
+  width: 100%;
+  min-height: 72px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  color: #191f28;
+  background: #ffffff;
+  border: 1px solid #e5e8eb;
+  border-left: 6px solid var(--difficulty-color, #1f8a70);
+  border-radius: 8px;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+
+.difficulty-card:active {
+  transform: scale(0.99);
+}
+
+.difficulty-card strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.difficulty-card span {
+  display: block;
+  color: #6b7684;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: right;
   white-space: nowrap;
 }
 

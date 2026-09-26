@@ -39,6 +39,11 @@ import type {
 type Mode = "explore" | "quiz-difficulty" | "quiz" | "quiz-result";
 
 const DIFFICULTY_ORDER: QuizDifficulty[] = ["easy", "normal", "hard"];
+const DIFFICULTY_ACCENT: Record<QuizDifficulty, string> = {
+  easy: "#1F8A70",
+  normal: "#0EA5E9",
+  hard: "#EF4444",
+};
 const RECENT_ELEMENT_KEY = "periodic-table:last-element";
 const DEFAULT_ELEMENT = mustGetElement(8);
 const GRID_ROWS = Array.from({ length: 10 }, (_, index) => index + 1);
@@ -265,6 +270,7 @@ function App() {
                 className="difficulty-card"
                 key={difficulty}
                 onClick={() => startQuiz(difficulty)}
+                style={cssVar("--difficulty-color", DIFFICULTY_ACCENT[difficulty])}
                 type="button"
               >
                 <strong>{preset.label}</strong>
