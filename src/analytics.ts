@@ -1,6 +1,7 @@
 import { trackClick as trackCoreClick } from "@seorilabs/ait-core";
 
 import type { ElementInfo } from "./data/elements";
+import type { QuizDifficulty, QuizQuestionType } from "./quiz";
 
 type AnalyticsValue = string | number | boolean | null | undefined;
 type AnalyticsParams = Record<string, AnalyticsValue>;
@@ -29,10 +30,36 @@ export function trackSearchSubmit(params: {
   });
 }
 
-export function trackQuizCompleted(params: { score: number; total: number }) {
+export function trackQuizDifficultySelected(params: {
+  difficulty: QuizDifficulty;
+}) {
+  logClick("quiz_difficulty_selected", {
+    difficulty: params.difficulty,
+  });
+}
+
+export function trackQuizCompleted(params: {
+  score: number;
+  total: number;
+  difficulty: QuizDifficulty;
+  questionTypes: QuizQuestionType[];
+}) {
   logClick("quiz_completed", {
     score: params.score,
     total: params.total,
+    difficulty: params.difficulty,
+    question_type_count: params.questionTypes.length,
+    question_types: params.questionTypes.join(","),
+  });
+}
+
+export function trackAdImpression(params: {
+  placement: string;
+  adGroupId: string;
+}) {
+  logClick("ad_impression", {
+    placement: params.placement,
+    ad_group_id: params.adGroupId,
   });
 }
 

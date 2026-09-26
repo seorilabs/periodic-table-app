@@ -18,6 +18,12 @@ vi.mock("@apps-in-toss/web-framework", () => ({
   SafeArea: {
     get: vi.fn(() => Promise.resolve({ top: 0, bottom: 0 })),
   },
+  loadFullScreenAd: Object.assign(vi.fn(() => () => {}), {
+    isSupported: vi.fn(() => false),
+  }),
+  showFullScreenAd: Object.assign(vi.fn(() => () => {}), {
+    isSupported: vi.fn(() => false),
+  }),
 }));
 
 afterEach(() => {

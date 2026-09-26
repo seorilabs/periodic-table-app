@@ -99,19 +99,28 @@ describe("원소 주기율표 앱", () => {
     });
   });
 
-  it("퀴즈 앱 내 기능 URL로 진입하면 퀴즈 화면을 바로 보여준다", () => {
+  it("퀴즈 앱 내 기능 URL로 진입하면 난이도 선택 화면을 보여준다", () => {
     renderApp("/quiz");
 
     expect(
-      screen.getByText(/^[A-Z][a-z]?는 어떤 원소일까요\?$/u),
+      screen.getByRole("heading", { name: "퀴즈 난이도 선택" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("퀴즈 선택지")).toBeInTheDocument();
+    expect(screen.getByLabelText("퀴즈 난이도")).toBeInTheDocument();
   });
 
-  it("퀴즈를 끝내고 결과 화면을 보여준다", async () => {
+  it("쉬움 난이도 퀴즈를 풀고 결과 화면을 보여준다", async () => {
     const user = renderApp();
 
     await user.click(screen.getByRole("button", { name: "퀴즈 풀기" }));
+    await user.click(screen.getByRole("button", { name: /쉬움/u }));
+
+    expect(Analytics.click).toHaveBeenCalledWith(
+      expect.objectContaining({
+        log_name: "periodic_table_quiz_difficulty_selected",
+        difficulty: "easy",
+      }),
+    );
+
     for (let index = 0; index < 5; index += 1) {
       const element = getCurrentQuizElement();
       const options = within(screen.getByLabelText("퀴즈 선택지")).getAllByRole(
@@ -119,24 +128,20 @@ describe("원소 주기율표 앱", () => {
       );
 
       expect(options).toHaveLength(4);
-      options.forEach((option) => {
-        const optionElement = ELEMENTS.find((item) =>
-          option.textContent?.includes(item.nameKo),
-        );
-
-        expect(optionElement).toBeDefined();
-        expect(option).not.toHaveTextContent(optionElement?.symbol ?? "");
-      });
 
       await user.click(getQuizOptionByElement(element));
     }
 
-    expect(screen.getByText("5/5점")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("5/5점")).toBeInTheDocument();
+    });
+
     expect(Analytics.click).toHaveBeenCalledWith(
       expect.objectContaining({
         log_name: "periodic_table_quiz_completed",
         score: 5,
         total: 5,
+        difficulty: "easy",
       }),
     );
     expect(
