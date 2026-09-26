@@ -12,7 +12,9 @@
 - [ ] 썸네일 1932 x 828 PNG
 - [ ] 세로 스크린샷 636 x 1048 PNG 최소 3장
 - [ ] 고객센터 전화번호 확정
-- [ ] 로그인, 결제, 광고, 서버 저장, 권한을 사용하지 않는다는 점 확인
+- [ ] 로그인, 결제, 서버 저장, 권한을 사용하지 않는다는 점 확인
+- [ ] 콘솔에서 발급한 전면광고 그룹 ID가 `.env.production`의 `VITE_AIT_AD_GROUP_ID`에 주입됐는지 확인 (개발 단계 기본값 `ait-ad-test-interstitial-id` 그대로 두지 않기)
+- [ ] 토스앱 preview에서 퀴즈 풀고 결과 화면 진입 직전에 전면광고가 1회 노출되고, `dismissed` 후 결과 화면으로 진입하는지 확인
 - [ ] `npm run lint` 통과
 - [ ] `npm run typecheck` 통과
 - [ ] `npm test` 통과

@@ -1,8 +1,19 @@
 import { getStorageItem, setStorageItem } from "@seorilabs/ait-core";
 import { Badge, Button, ProgressBar, TextField, Top } from "@toss/tds-mobile";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
+import {
+  loadInterstitialAd,
+  showInterstitialAd,
+} from "./ads";
+import {
+  trackAdImpression,
+  trackElementOpen,
+  trackQuizCompleted,
+  trackQuizDifficultySelected,
+  trackSearchSubmit,
+} from "./analytics";
 import {
   CATEGORY_META,
   DATA_SOURCE,
@@ -13,35 +24,30 @@ import {
 } from "./data/elements";
 import type { ElementCategoryKey, ElementInfo } from "./data/elements";
 import {
-  trackElementOpen,
-  trackQuizCompleted,
-  trackSearchSubmit,
-} from "./analytics";
+  buildQuizRound,
+  DIFFICULTY_LABELS,
+  formatQuizOptionLabel,
+  getQuizOptionMeta,
+} from "./quiz";
+import type {
+  QuizAnswer,
+  QuizDifficulty,
+  QuizQuestion,
+  QuizQuestionType,
+} from "./quiz";
 
-type Mode = "explore" | "quiz" | "quiz-result";
-type CategoryFilter = ElementCategoryKey | "all";
+type Mode = "explore" | "quiz-difficulty" | "quiz" | "quiz-result";
 
-interface QuizQuestion {
-  id: string;
-  element: ElementInfo;
-  options: ElementInfo[];
-}
-
-interface QuizAnswer {
-  questionId: string;
-  selectedSymbol: string;
-  correct: boolean;
-}
-
-const APP_META = {
-  displayName: "원소 주기율표",
-};
+const DIFFICULTY_ORDER: QuizDifficulty[] = ["easy", "normal", "hard"];
 const RECENT_ELEMENT_KEY = "periodic-table:last-element";
 const DEFAULT_ELEMENT = mustGetElement(8);
 const GRID_ROWS = Array.from({ length: 10 }, (_, index) => index + 1);
 const GRID_COLUMNS = Array.from({ length: 18 }, (_, index) => index + 1);
-const QUIZ_QUESTION_COUNT = 5;
-const QUIZ_OPTION_COUNT = 4;
+
+const APP_META = {
+  displayName: "원소 주기율표",
+};
+
 const CATEGORY_STORY_LINES: Record<ElementCategoryKey, string> = {
   nonmetal:
     "비금속 계열이라 금속처럼 다루기보다 생명, 대기, 광물 속에서 다양한 모습으로 등장해요.",
@@ -69,7 +75,7 @@ function App() {
   const [initialPath] = useState(() => window.location.pathname);
   const [initialElement] = useState(() => getInitialElementFromUrl());
   const [mode, setMode] = useState<Mode>(() =>
-    initialPath.includes("/quiz") ? "quiz" : "explore",
+    initialPath.includes("/quiz") ? "quiz-difficulty" : "explore",
   );
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -77,11 +83,13 @@ function App() {
   const [selectedElement, setSelectedElement] = useState<ElementInfo>(
     initialElement ?? DEFAULT_ELEMENT,
   );
+  const [quizDifficulty, setQuizDifficulty] = useState<QuizDifficulty>("easy");
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(() =>
-    buildQuizRound(),
+    buildQuizRound("easy"),
   );
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<QuizAnswer[]>([]);
+  const quizAdHandleRef = useRef<{ unload: () => void } | null>(null);
 
   useEffect(() => {
     if (initialElement != null) {
@@ -102,6 +110,35 @@ function App() {
       }
     });
   }, [initialElement, initialPath]);
+
+  useEffect(() => {
+    return () => {
+      quizAdHandleRef.current?.unload();
+      quizAdHandleRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "quiz") {
+      quizAdHandleRef.current?.unload();
+      quizAdHandleRef.current = null;
+      return;
+    }
+
+    const handle = loadInterstitialAd({
+      onError: (error) => {
+        if (typeof console !== "undefined") {
+          console.warn("[ads] pre-fetch failed", error);
+        }
+      },
+    });
+    quizAdHandleRef.current = { unload: handle.unload };
+
+    return () => {
+      handle.unload();
+      quizAdHandleRef.current = null;
+    };
+  }, [mode]);
 
   const filteredElements = useMemo(
     () =>
@@ -139,34 +176,114 @@ function App() {
     }
   };
 
-  const startQuiz = () => {
-    setQuizQuestions(buildQuizRound());
-    setMode("quiz");
-    setQuizIndex(0);
-    setQuizAnswers([]);
+  const openDifficultyPicker = () => {
+    setMode("quiz-difficulty");
     scrollToTop();
   };
 
+  const startQuiz = useCallback(
+    (difficulty: QuizDifficulty) => {
+      trackQuizDifficultySelected({ difficulty });
+      setQuizDifficulty(difficulty);
+      setQuizQuestions(buildQuizRound(difficulty));
+      setMode("quiz");
+      setQuizIndex(0);
+      setQuizAnswers([]);
+      scrollToTop();
+    },
+    [],
+  );
+
+  const finishQuiz = useCallback(
+    async (finalAnswers: QuizAnswer[]) => {
+      const score = finalAnswers.filter((answer) => answer.correct).length;
+      const questionTypes = finalAnswers.map(
+        (answer) => answer.type,
+      ) as QuizQuestionType[];
+      trackQuizCompleted({
+        score,
+        total: finalAnswers.length,
+        difficulty: quizDifficulty,
+        questionTypes,
+      });
+
+      const adResult = await showInterstitialAd({
+        onAdImpression: (adGroupId) => {
+          trackAdImpression({ placement: "quiz_result", adGroupId });
+        },
+      });
+      if (typeof console !== "undefined" && !adResult.shown) {
+        console.info("[ads] skipped", adResult.reason);
+      }
+
+      setMode("quiz-result");
+      scrollToTop();
+    },
+    [quizDifficulty],
+  );
+
   const answerQuiz = (symbol: string) => {
+    const question = currentQuizQuestion;
     const answer: QuizAnswer = {
-      questionId: currentQuizQuestion.id,
+      questionId: question.id,
       selectedSymbol: symbol,
-      correct: symbol === currentQuizQuestion.element.symbol,
+      correct: symbol === question.element.symbol,
+      difficulty: quizDifficulty,
+      type: question.type,
     };
     const nextAnswers = [...quizAnswers, answer];
     setQuizAnswers(nextAnswers);
 
     if (quizIndex === quizQuestions.length - 1) {
-      const nextScore = nextAnswers.filter((item) => item.correct).length;
-      trackQuizCompleted({ score: nextScore, total: quizQuestions.length });
-      setMode("quiz-result");
-      scrollToTop();
+      void finishQuiz(nextAnswers);
       return;
     }
 
     setQuizIndex((current) => current + 1);
     scrollToTop();
   };
+
+  if (mode === "quiz-difficulty") {
+    return (
+      <main className="app-screen">
+        <Top
+          lowerGap={16}
+          title={
+            <Top.TitleParagraph size={22}>퀴즈 난이도 선택</Top.TitleParagraph>
+          }
+          subtitleBottom={
+            <Top.SubtitleParagraph size={17}>
+              원소를 어떻게 시험해볼지 골라 주세요.
+            </Top.SubtitleParagraph>
+          }
+        />
+        <section className="difficulty-list" aria-label="퀴즈 난이도">
+          {DIFFICULTY_ORDER.map((difficulty) => {
+            const preset = DIFFICULTY_LABELS[difficulty];
+            return (
+              <button
+                className="difficulty-card"
+                key={difficulty}
+                onClick={() => startQuiz(difficulty)}
+                type="button"
+              >
+                <strong>{preset.label}</strong>
+                <span>{preset.description}</span>
+              </button>
+            );
+          })}
+        </section>
+        <Button
+          color="dark"
+          display="full"
+          onClick={() => setMode("explore")}
+          variant="weak"
+        >
+          원소표로 돌아가기
+        </Button>
+      </main>
+    );
+  }
 
   if (mode === "quiz") {
     return (
@@ -187,12 +304,12 @@ function App() {
           lowerGap={12}
           title={
             <Top.TitleParagraph size={22}>
-              {currentQuizQuestion.element.symbol}는 어떤 원소일까요?
+              {currentQuizQuestion.prompt}
             </Top.TitleParagraph>
           }
           subtitleBottom={
             <Top.SubtitleParagraph size={17}>
-              원자번호 {currentQuizQuestion.element.atomicNumber}
+              {currentQuizQuestion.element.atomicNumber}번 · {DIFFICULTY_LABELS[quizDifficulty].label}
             </Top.SubtitleParagraph>
           }
         />
@@ -201,7 +318,7 @@ function App() {
           {currentQuizQuestion.options.map((option) => (
             <button
               className="quiz-option"
-              key={option.symbol}
+              key={`${currentQuizQuestion.id}-${option.symbol}`}
               onClick={() => answerQuiz(option.symbol)}
               style={cssVar(
                 "--element-color",
@@ -209,8 +326,12 @@ function App() {
               )}
               type="button"
             >
-              <span className="option-label">{option.nameKo}</span>
-              <span className="option-meta">{option.categoryKo}</span>
+              <span className="option-label">
+                {formatQuizOptionLabel(currentQuizQuestion, option)}
+              </span>
+              <span className="option-meta">
+                {getQuizOptionMeta(currentQuizQuestion, option)}
+              </span>
             </button>
           ))}
         </section>
@@ -248,6 +369,7 @@ function App() {
           }
           subtitleBottom={
             <Top.SubtitleParagraph size={17}>
+              {DIFFICULTY_LABELS[quizDifficulty].label} ·{" "}
               {quizScore === quizQuestions.length
                 ? "모든 원소를 맞혔어요."
                 : "헷갈린 원소를 카드에서 다시 확인해요."}
@@ -273,8 +395,15 @@ function App() {
         ) : null}
 
         <section className="action-section">
-          <Button display="full" onClick={startQuiz} size="large">
+          <Button display="full" onClick={() => startQuiz(quizDifficulty)} size="large">
             다시 풀기
+          </Button>
+          <Button
+            display="full"
+            onClick={openDifficultyPicker}
+            variant="weak"
+          >
+            난이도 바꾸기
           </Button>
           <Button
             color="dark"
@@ -465,7 +594,7 @@ function App() {
         </dl>
 
         <section className="action-section">
-          <Button display="full" onClick={startQuiz} size="large">
+          <Button display="full" onClick={openDifficultyPicker} size="large">
             퀴즈 풀기
           </Button>
         </section>
@@ -477,6 +606,8 @@ function App() {
     </main>
   );
 }
+
+type CategoryFilter = ElementCategoryKey | "all";
 
 interface FilterButtonProps {
   active: boolean;
@@ -564,48 +695,6 @@ function normalizeQuery(value: string) {
   return value.trim().replace(/\s+/gu, "").toLowerCase();
 }
 
-function buildQuizRound() {
-  return pickRandomElements(ELEMENTS, QUIZ_QUESTION_COUNT).map(
-    buildQuizQuestion,
-  );
-}
-
-function buildQuizQuestion(element: ElementInfo): QuizQuestion {
-  const optionPool = ELEMENTS.filter(
-    (candidate) => candidate.symbol !== element.symbol,
-  );
-  const options = shuffleElements([
-    element,
-    ...pickRandomElements(optionPool, QUIZ_OPTION_COUNT - 1),
-  ]);
-
-  return {
-    id: `q-${element.symbol}`,
-    element,
-    options,
-  };
-}
-
-function pickRandomElements(
-  elements: readonly ElementInfo[],
-  count: number,
-): ElementInfo[] {
-  const pool = [...elements];
-  const selected: ElementInfo[] = [];
-
-  while (selected.length < count && pool.length > 0) {
-    const index = Math.floor(Math.random() * pool.length);
-    const [element] = pool.splice(index, 1);
-    selected.push(element);
-  }
-
-  return selected;
-}
-
-function shuffleElements(elements: readonly ElementInfo[]) {
-  return pickRandomElements(elements, elements.length);
-}
-
 function mustGetElement(atomicNumber: number) {
   const element = ELEMENTS_BY_NUMBER.get(atomicNumber);
 
@@ -627,29 +716,32 @@ function getInitialElementFromUrl() {
   return ELEMENTS_BY_SYMBOL.get(symbol.toUpperCase()) ?? null;
 }
 
-function formatNumber(value: number | null) {
-  if (value == null || Number.isNaN(value)) {
-    return "확인 필요";
+function scrollToTop() {
+  if (typeof window === "undefined") {
+    return;
   }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
-  return Number.isInteger(value)
-    ? String(value)
-    : value.toLocaleString("ko-KR");
+function scrollToElementDetail() {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const detail = document.getElementById("element-detail");
+  detail?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function cssVar(name: string, value: string): CSSProperties {
   return { [name]: value } as CSSProperties;
 }
 
-function scrollToTop() {
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
+function formatNumber(value: number | null) {
+  if (value == null) {
+    return "확인 필요";
+  }
 
-function scrollToElementDetail() {
-  window.requestAnimationFrame(() => {
-    document
-      .getElementById("element-detail")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  return value.toLocaleString("ko-KR", {
+    maximumFractionDigits: 3,
   });
 }
 
