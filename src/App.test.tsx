@@ -1,4 +1,4 @@
-import { Analytics } from "@apps-in-toss/web-framework";
+import { Analytics, Screen } from "@apps-in-toss/web-framework";
 import { TDSMobileProvider } from "@toss/tds-mobile";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -242,6 +242,16 @@ describe("원소 주기율표 앱", () => {
       ).toBeInTheDocument();
     });
     expect(screen.queryByLabelText("퀴즈 선택지")).not.toBeInTheDocument();
+  });
+
+  it("최초 화면에서 백버튼을 누르면 Screen.close가 호출된다", () => {
+    renderApp();
+    expect(screen.getByText("원소 주기율표")).toBeInTheDocument();
+    expect(Screen.close).not.toHaveBeenCalled();
+
+    triggerAitBackEvent();
+
+    expect(Screen.close).toHaveBeenCalledTimes(1);
   });
 });
 

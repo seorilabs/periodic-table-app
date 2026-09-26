@@ -35,9 +35,10 @@ import type {
   QuizQuestion,
   QuizQuestionType,
 } from "./quiz";
-import { graniteEvent } from "@apps-in-toss/web-framework";
+import { graniteEvent, Screen } from "@apps-in-toss/web-framework";
 import {
   clearModeState,
+  modeClosesOnBack,
   modeRequiresBackConfirm,
   pushModeState,
   previousModeFor,
@@ -149,6 +150,10 @@ function App() {
 
   const goBack = useCallback(() => {
     const current = modeRef.current;
+    if (modeClosesOnBack(current)) {
+      void Screen.close();
+      return;
+    }
     const target = previousModeFor(current);
     if (target == null) {
       return;
