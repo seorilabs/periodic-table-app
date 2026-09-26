@@ -133,16 +133,11 @@ describe("원소 주기율표 앱", () => {
       await user.click(getQuizOptionByElement(element));
     }
 
-    // 마지막 답 직후 광고 게이트가 먼저 보여야 한다 (예측 가능한 노출 시점)
+    // 마지막 답 직후 광고 호출 + 결과 화면 진입을 기다림 (테스트 mock에서
+    // showFullScreenAd는 unsupported로 즉시 반환되므로 결과 화면이 곧바로 표시됨)
     await waitFor(() => {
-      expect(
-        screen.getByText(/잠시 후 전면광고가 표시돼요/u),
-      ).toBeInTheDocument();
+      expect(screen.getByText("5/5점")).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "광고 보고 결과 보기" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "광고 없이 결과 보기" }),
-    ).toBeInTheDocument();
 
     expect(Analytics.click).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -152,19 +147,32 @@ describe("원소 주기율표 앱", () => {
         difficulty: "easy",
       }),
     );
+  });
 
-    // 광고 없이 결과로 진입
-    await user.click(screen.getByRole("button", { name: "광고 없이 결과 보기" }));
+  it("마지막 문항에 광고 안내가 표시되고 이전 문항에는 표시되지 않는다", async () => {
+    const user = renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByText("5/5점")).toBeInTheDocument();
-    });
-    expect(Analytics.click).toHaveBeenCalledWith(
-      expect.objectContaining({
-        log_name: "periodic_table_ad_skipped",
-        placement: "quiz_result",
-      }),
-    );
+    await user.click(screen.getByRole("button", { name: "퀴즈 풀기" }));
+    await user.click(screen.getByRole("button", { name: /쉬움/u }));
+
+    // 첫 문항: 광고 고지 없음
+    expect(
+      screen.queryByText(/이 문항이 마지막이에요/u),
+    ).not.toBeInTheDocument();
+
+    // 4문항 진행 (5번째 = 마지막 문항 진입)
+    for (let index = 0; index < 4; index += 1) {
+      const element = getCurrentQuizElement();
+      await user.click(getQuizOptionByElement(element));
+    }
+
+    // 마지막 문항: 광고 고지 박스 표시
+    expect(
+      screen.getByText(/이 문항이 마지막이에요/u),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/전면광고가 한 번 표시되고/u),
+    ).toBeInTheDocument();
   });
 
   it("난이도 선택에서 백버튼을 누르면 원소표로 돌아간다", async () => {

@@ -2,14 +2,12 @@ export type Mode =
   | "explore"
   | "quiz-difficulty"
   | "quiz"
-  | "quiz-ad-gate"
   | "quiz-result";
 
 const MODE_STACK: Record<Mode, Mode | null> = {
   explore: null,
   "quiz-difficulty": "explore",
   quiz: "quiz-difficulty",
-  "quiz-ad-gate": "quiz-result",
   "quiz-result": "explore",
 };
 

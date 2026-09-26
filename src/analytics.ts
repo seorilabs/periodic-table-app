@@ -63,12 +63,6 @@ export function trackAdImpression(params: {
   });
 }
 
-export function trackAdSkipped(params: { placement: string }) {
-  logClick("ad_skipped", {
-    placement: params.placement,
-  });
-}
-
 function classifyQuery(query: string): string {
   const trimmed = query.trim();
 
