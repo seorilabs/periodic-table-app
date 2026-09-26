@@ -16,6 +16,7 @@
 - [ ] 콘솔에서 발급한 전면광고 그룹 ID가 `.env.production`의 `VITE_AIT_AD_GROUP_ID`에 주입됐는지 확인 (개발 단계 기본값 `ait-ad-test-interstitial-id` 그대로 두지 않기)
 - [ ] 토스앱 preview에서 마지막 문항 화면 하단에 "이 문항이 마지막이에요" 광고 안내가 표시되는지 확인
 - [ ] 마지막 답 클릭 후 전면광고가 1회 노출되고, `dismissed` 후 결과 화면(`5/5점` 등)으로 진입하는지 확인
+- [ ] 최초 화면(원소표)에서 시스템 백버튼을 누르면 미니앱이 종료되는지 확인 (`Screen.close()` 동작)
 - [ ] `npm run lint` 통과
 - [ ] `npm run typecheck` 통과
 - [ ] `npm test` 통과

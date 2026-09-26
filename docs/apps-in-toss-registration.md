@@ -79,14 +79,14 @@
 
 | 현재 모드 | 백버튼 시 의도 모드 | confirm |
 | --- | --- | --- |
-| `explore` | (앱 종료) | — |
+| `explore` | `Screen.close()` (미니앱 종료) | — |
 | `quiz-difficulty` | `explore` | — |
 | `quiz` | `quiz-difficulty` | "퀴즈를 중단하시겠어요?" 다이얼로그 |
-| `quiz-ad-gate` | `quiz-result` | — (게이트 자체가 modal 성격) |
 | `quiz-result` | `explore` | — |
 
 - confirm dialog는 TDS Portal 기반 ConfirmDialog가 jsdom에서 unmount DOMException을 일으켜서 자체 인라인 `.modal-overlay` / `.modal-card` 컴포넌트로 교체했다. 토스앱 환경에서도 동일하게 렌더링된다.
 - 모드 전환 시 `history.pushState({mode})`로 진입 이력을 쌓고, `popstate` 리스너가 한 단계 전 모드로 `setMode`한다. 백으로 인한 모드 변경은 `fromBackRef`로 pushState 중복을 막는다.
+- `explore` 모드에서 백버튼이 들어오면 `MODES_CLOSING_ON_BACK` 매핑에 따라 `Screen.close()`(v3 SDK)를 호출해 미니앱을 종료한다. `goBack`은 `modeClosesOnBack(current)`를 먼저 확인하고, 그 다음 `previousModeFor`/`modeRequiresBackConfirm` 순으로 분기한다.
 
 ## 상세 설명
 

@@ -39,6 +39,9 @@ vi.mock("@apps-in-toss/web-framework", () => ({
       },
     ),
   },
+  Screen: {
+    close: vi.fn(() => Promise.resolve()),
+  },
 }));
 
 export function triggerAitBackEvent() {

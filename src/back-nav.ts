@@ -13,12 +13,18 @@ const MODE_STACK: Record<Mode, Mode | null> = {
 
 const MODES_REQUIRING_CONFIRM: ReadonlySet<Mode> = new Set<Mode>(["quiz"]);
 
+const MODES_CLOSING_ON_BACK: ReadonlySet<Mode> = new Set<Mode>(["explore"]);
+
 export function previousModeFor(current: Mode): Mode | null {
   return MODE_STACK[current];
 }
 
 export function modeRequiresBackConfirm(current: Mode): boolean {
   return MODES_REQUIRING_CONFIRM.has(current);
+}
+
+export function modeClosesOnBack(current: Mode): boolean {
+  return MODES_CLOSING_ON_BACK.has(current);
 }
 
 export const BACK_NAV_STATE_KEY = "periodic-table:mode";
