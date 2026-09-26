@@ -12,7 +12,12 @@ vi.mock("@apps-in-toss/web-framework", () => ({
     setItem: vi.fn().mockResolvedValue(undefined),
     removeItem: vi.fn().mockResolvedValue(undefined),
   },
-  getSafeAreaInsets: vi.fn(() => ({ top: 0, bottom: 0 })),
+  Share: {
+    sendMessage: vi.fn().mockResolvedValue(undefined),
+  },
+  SafeArea: {
+    get: vi.fn(() => Promise.resolve({ top: 0, bottom: 0 })),
+  },
 }));
 
 afterEach(() => {

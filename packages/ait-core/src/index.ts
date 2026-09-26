@@ -1,4 +1,4 @@
-import { Analytics, Storage, share } from "@apps-in-toss/web-framework";
+import { Analytics, Share, Storage } from "@apps-in-toss/web-framework";
 
 export type AnalyticsValue = string | number | boolean | null | undefined;
 export type AnalyticsParams = Record<string, AnalyticsValue>;
@@ -47,7 +47,7 @@ export async function shareMessage(
   fallbackTitle = "Apps in Toss",
 ): Promise<ShareMessageResult> {
   try {
-    await share({ message });
+    await Share.sendMessage({ message });
     return { ok: true, method: "apps-in-toss" };
   } catch {
     return shareWithBrowser(message, fallbackTitle);

@@ -1,4 +1,4 @@
-import { Analytics, Storage, share } from "@apps-in-toss/web-framework";
+import { Analytics, Share, Storage } from "@apps-in-toss/web-framework";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -21,7 +21,9 @@ vi.mock("@apps-in-toss/web-framework", () => ({
     setItem: vi.fn().mockResolvedValue(undefined),
     removeItem: vi.fn().mockResolvedValue(undefined),
   },
-  share: vi.fn().mockResolvedValue(undefined),
+  Share: {
+    sendMessage: vi.fn().mockResolvedValue(undefined),
+  },
 }));
 
 describe("@seorilabs/ait-core", () => {
@@ -70,12 +72,14 @@ describe("@seorilabs/ait-core", () => {
       ok: true,
       method: "apps-in-toss",
     });
-    expect(share).toHaveBeenCalledWith({ message: "hello" });
+    expect(Share.sendMessage).toHaveBeenCalledWith({ message: "hello" });
   });
 
   it("falls back to browser share when AppsInToss share fails", async () => {
     const browserShare = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(share).mockRejectedValueOnce(new Error("outside runtime"));
+    vi.mocked(Share.sendMessage).mockRejectedValueOnce(
+      new Error("outside runtime"),
+    );
     Object.defineProperty(navigator, "share", {
       configurable: true,
       value: browserShare,

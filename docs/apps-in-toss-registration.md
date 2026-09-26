@@ -96,9 +96,10 @@
 
 ## 코드 동기화 기준
 
-- 콘솔 한국어 앱 이름, `granite.config.ts`의 `brand.displayName`, `index.html`의 `<title>`, 앱 첫 화면 타이틀은 모두 `원소 주기율표`로 맞춘다.
+- SDK 3.x는 `granite.config.ts`를 `apps-in-toss.config.ts`로 옮기고 `brand.displayName` / `brand.icon` / `webViewProps.type`을 설정에서 제거했다. 이 값들은 전부 콘솔 메타데이터에서만 관리한다.
+- 코드에서 동기화해야 하는 값은 `index.html`의 `<title>`과 `apps-in-toss.config.ts`의 `appName` / `brand.primaryColor`, 그리고 콘솔 한국어 앱 이름, 앱 첫 화면 타이틀뿐이며 모두 `원소 주기율표` / `periodic-table` / `#1F8A70`으로 맞춘다.
 - `appName`은 등록 후 수정할 수 없으므로 콘솔 등록 전 `periodic-table` 최종 확정을 다시 확인한다.
-- 현재 `brand.icon`과 spec `app.iconUrl`은 콘솔 업로드 후 복사한 HTTPS URL `https://static.toss.im/appsintoss/38345/045e816d-d16d-4ca8-839f-ebb99e97eb09.png`로 맞춘다.
+- spec `app.iconUrl`은 콘솔 업로드 후 복사한 HTTPS URL `https://static.toss.im/appsintoss/38345/045e816d-d16d-4ca8-839f-ebb99e97eb09.png`로 맞춘다.
 - 앱 내 기능명은 한국어 10자 이하, 영어 15자 이하 조건을 만족한다.
 
 ## 출시 전 확인 필요
