@@ -14,7 +14,8 @@
 - [ ] 고객센터 전화번호 확정
 - [ ] 로그인, 결제, 서버 저장, 권한을 사용하지 않는다는 점 확인
 - [ ] 콘솔에서 발급한 전면광고 그룹 ID가 `.env.production`의 `VITE_AIT_AD_GROUP_ID`에 주입됐는지 확인 (개발 단계 기본값 `ait-ad-test-interstitial-id` 그대로 두지 않기)
-- [ ] 토스앱 preview에서 퀴즈 풀고 결과 화면 진입 직전에 전면광고가 1회 노출되고, `dismissed` 후 결과 화면으로 진입하는지 확인
+- [ ] 토스앱 preview에서 퀴즈 마지막 답 직후 광고 게이트 화면이 먼저 표시되고, "광고 보고 결과 보기" 클릭 시 전면광고가 1회 노출 → `dismissed` 후 결과 화면으로 진입하는지 확인
+- [ ] "광고 없이 결과 보기" 클릭 시 광고 없이 결과 화면으로 즉시 진입하고 `periodic_table_ad_skipped` 이벤트가 기록되는지 확인
 - [ ] `npm run lint` 통과
 - [ ] `npm run typecheck` 통과
 - [ ] `npm test` 통과

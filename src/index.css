@@ -313,6 +313,28 @@ button {
   font-size: 15px;
 }
 
+.ad-notice {
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+  color: #191f28;
+  background: #fff8e1;
+  border: 1px solid #f3d68c;
+  border-left: 5px solid #d97706;
+  border-radius: 8px;
+}
+
+.ad-notice strong {
+  font-size: 15px;
+}
+
+.ad-notice p {
+  margin: 0;
+  color: #4e5968;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .fact-grid {
   margin: 0;
   display: grid;

@@ -9,6 +9,7 @@ import {
 } from "./ads";
 import {
   trackAdImpression,
+  trackAdSkipped,
   trackElementOpen,
   trackQuizCompleted,
   trackQuizDifficultySelected,
@@ -36,7 +37,7 @@ import type {
   QuizQuestionType,
 } from "./quiz";
 
-type Mode = "explore" | "quiz-difficulty" | "quiz" | "quiz-result";
+type Mode = "explore" | "quiz-difficulty" | "quiz" | "quiz-ad-gate" | "quiz-result";
 
 const DIFFICULTY_ORDER: QuizDifficulty[] = ["easy", "normal", "hard"];
 const DIFFICULTY_ACCENT: Record<QuizDifficulty, string> = {
@@ -199,8 +200,8 @@ function App() {
     [],
   );
 
-  const finishQuiz = useCallback(
-    async (finalAnswers: QuizAnswer[]) => {
+  const finalizeQuiz = useCallback(
+    (finalAnswers: QuizAnswer[]) => {
       const score = finalAnswers.filter((answer) => answer.correct).length;
       const questionTypes = finalAnswers.map(
         (answer) => answer.type,
@@ -211,21 +212,31 @@ function App() {
         difficulty: quizDifficulty,
         questionTypes,
       });
-
-      const adResult = await showInterstitialAd({
-        onAdImpression: (adGroupId) => {
-          trackAdImpression({ placement: "quiz_result", adGroupId });
-        },
-      });
-      if (typeof console !== "undefined" && !adResult.shown) {
-        console.info("[ads] skipped", adResult.reason);
-      }
-
-      setMode("quiz-result");
+      setMode("quiz-ad-gate");
       scrollToTop();
     },
     [quizDifficulty],
   );
+
+  const enterResult = useCallback((withAd: boolean) => {
+    if (withAd) {
+      void showInterstitialAd({
+        onAdImpression: (adGroupId) => {
+          trackAdImpression({ placement: "quiz_result", adGroupId });
+        },
+      }).then((result) => {
+        if (typeof console !== "undefined" && !result.shown) {
+          console.info("[ads] skipped", result.reason);
+        }
+        setMode("quiz-result");
+        scrollToTop();
+      });
+      return;
+    }
+    trackAdSkipped({ placement: "quiz_result" });
+    setMode("quiz-result");
+    scrollToTop();
+  }, []);
 
   const answerQuiz = (symbol: string) => {
     const question = currentQuizQuestion;
@@ -240,7 +251,7 @@ function App() {
     setQuizAnswers(nextAnswers);
 
     if (quizIndex === quizQuestions.length - 1) {
-      void finishQuiz(nextAnswers);
+      finalizeQuiz(nextAnswers);
       return;
     }
 
@@ -342,6 +353,59 @@ function App() {
           ))}
         </section>
 
+        <Button
+          color="dark"
+          display="full"
+          onClick={() => setMode("explore")}
+          variant="weak"
+        >
+          원소표로 돌아가기
+        </Button>
+      </main>
+    );
+  }
+
+  if (mode === "quiz-ad-gate") {
+    return (
+      <main className="app-screen">
+        <Top
+          lowerGap={16}
+          title={
+            <Top.TitleParagraph size={22}>퀴즈 완료</Top.TitleParagraph>
+          }
+          subtitleBottom={
+            <Top.SubtitleParagraph size={17}>
+              {DIFFICULTY_LABELS[quizDifficulty].label} ·{" "}
+              {quizAnswers.length}문제 풀었어요. 결과 화면으로 가기 전에
+              잠깐 안내를 드려요.
+            </Top.SubtitleParagraph>
+          }
+        />
+        <section className="ad-notice" aria-label="광고 안내">
+          <strong>잠시 후 전면광고가 표시돼요</strong>
+          <p>
+            퀴즈 종료 후 1회 전면광고가 노출됩니다. 광고를 보지 않고 바로 결과만
+            확인할 수도 있어요. 광고를 누르면 외부 페이지로 이동할 수 있으니
+            이 점을 미리 알아 두세요.
+          </p>
+        </section>
+        <section className="action-section">
+          <Button
+            display="full"
+            onClick={() => enterResult(true)}
+            size="large"
+          >
+            광고 보고 결과 보기
+          </Button>
+          <Button
+            color="dark"
+            display="full"
+            onClick={() => enterResult(false)}
+            variant="weak"
+          >
+            광고 없이 결과 보기
+          </Button>
+        </section>
         <Button
           color="dark"
           display="full"

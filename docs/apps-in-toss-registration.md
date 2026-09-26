@@ -102,6 +102,7 @@
 - spec `app.iconUrl`은 콘솔 업로드 후 복사한 HTTPS URL `https://static.toss.im/appsintoss/38345/045e816d-d16d-4ca8-839f-ebb99e97eb09.png`로 맞춘다.
 - 앱 내 기능명은 한국어 10자 이하, 영어 15자 이하 조건을 만족한다.
 - 퀴즈 전면광고 단위 ID는 콘솔에서 발급 후 `.env.production`의 `VITE_AIT_AD_GROUP_ID`에 주입한다. 개발 단계 기본값 `ait-ad-test-interstitial-id`는 콘솔에서 발급한 실제 ID로 교체하기 전까지만 사용한다.
+- 마지막 답 직후 전면광고는 즉시 표시하지 않고 "광고 보고 결과 보기 / 광고 없이 결과 보기" 두 선택지가 있는 광고 게이트(`mode: "quiz-ad-gate"`)를 먼저 보여준다. UX 정책(No Deception, Clear Action)을 만족시키기 위함.
 
 ## 출시 전 확인 필요
 

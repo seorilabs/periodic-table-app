@@ -108,7 +108,7 @@ describe("원소 주기율표 앱", () => {
     expect(screen.getByLabelText("퀴즈 난이도")).toBeInTheDocument();
   });
 
-  it("쉬움 난이도 퀴즈를 풀고 결과 화면을 보여준다", async () => {
+  it("쉬움 난이도 퀴즈를 풀고 광고 게이트에서 광고 없이 결과로 진입한다", async () => {
     const user = renderApp();
 
     await user.click(screen.getByRole("button", { name: "퀴즈 풀기" }));
@@ -132,9 +132,16 @@ describe("원소 주기율표 앱", () => {
       await user.click(getQuizOptionByElement(element));
     }
 
+    // 마지막 답 직후 광고 게이트가 먼저 보여야 한다 (예측 가능한 노출 시점)
     await waitFor(() => {
-      expect(screen.getByText("5/5점")).toBeInTheDocument();
+      expect(
+        screen.getByText(/잠시 후 전면광고가 표시돼요/u),
+      ).toBeInTheDocument();
     });
+    expect(screen.getByRole("button", { name: "광고 보고 결과 보기" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "광고 없이 결과 보기" }),
+    ).toBeInTheDocument();
 
     expect(Analytics.click).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -144,9 +151,19 @@ describe("원소 주기율표 앱", () => {
         difficulty: "easy",
       }),
     );
-    expect(
-      screen.queryByRole("button", { name: /공유/u }),
-    ).not.toBeInTheDocument();
+
+    // 광고 없이 결과로 진입
+    await user.click(screen.getByRole("button", { name: "광고 없이 결과 보기" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("5/5점")).toBeInTheDocument();
+    });
+    expect(Analytics.click).toHaveBeenCalledWith(
+      expect.objectContaining({
+        log_name: "periodic_table_ad_skipped",
+        placement: "quiz_result",
+      }),
+    );
   });
 });
 
