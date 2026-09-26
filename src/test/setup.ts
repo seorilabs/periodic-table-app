@@ -24,7 +24,28 @@ vi.mock("@apps-in-toss/web-framework", () => ({
   showFullScreenAd: Object.assign(vi.fn(() => () => {}), {
     isSupported: vi.fn(() => false),
   }),
+  graniteEvent: {
+    addEventListener: vi.fn(
+      (
+        _event: string,
+        args: { onEvent: () => void; onError?: (error: unknown) => void },
+      ) => {
+        (window as Window & { __aitBackEvent__?: () => void }).__aitBackEvent__ =
+          args.onEvent;
+        return () => {
+          delete (window as Window & { __aitBackEvent__?: () => void })
+            .__aitBackEvent__;
+        };
+      },
+    ),
+  },
 }));
+
+export function triggerAitBackEvent() {
+  const fn = (window as Window & { __aitBackEvent__?: () => void })
+    .__aitBackEvent__;
+  if (fn) fn();
+}
 
 afterEach(() => {
   cleanup();

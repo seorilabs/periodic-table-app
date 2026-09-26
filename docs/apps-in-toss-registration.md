@@ -73,6 +73,21 @@
 - 특정 원소 카드 검증에는 `intoss://periodic-table/elements?element=O`처럼 `element` 쿼리를 붙일 수 있다.
 - 앱 내 기능명은 한국어 10자 이하, 영어 15자 이하 조건을 만족한다.
 
+## 백버튼 네비게이션
+
+`graniteEvent.backEvent`(v3 SDK)와 `window.popstate`(dev preview / 외부 브라우저)를 함께 구독해서 시스템 백버튼을 가로챈다. 모드별 이전 모드 매핑은 `src/back-nav.ts`의 `MODE_STACK`에 정의돼 있다.
+
+| 현재 모드 | 백버튼 시 의도 모드 | confirm |
+| --- | --- | --- |
+| `explore` | (앱 종료) | — |
+| `quiz-difficulty` | `explore` | — |
+| `quiz` | `quiz-difficulty` | "퀴즈를 중단하시겠어요?" 다이얼로그 |
+| `quiz-ad-gate` | `quiz-result` | — (게이트 자체가 modal 성격) |
+| `quiz-result` | `explore` | — |
+
+- confirm dialog는 TDS Portal 기반 ConfirmDialog가 jsdom에서 unmount DOMException을 일으켜서 자체 인라인 `.modal-overlay` / `.modal-card` 컴포넌트로 교체했다. 토스앱 환경에서도 동일하게 렌더링된다.
+- 모드 전환 시 `history.pushState({mode})`로 진입 이력을 쌓고, `popstate` 리스너가 한 단계 전 모드로 `setMode`한다. 백으로 인한 모드 변경은 `fromBackRef`로 pushState 중복을 막는다.
+
 ## 상세 설명
 
 원소 주기율표는 118개 원소를 작은 화면에서도 빠르게 탐색할 수 있게 정리한 교육형 미니앱입니다. 사용자는 앱에 들어오면 모바일 주기율표와 원소찾기 버튼을 보고, 원소 이름, 기호, 원자번호로 검색하거나 분류 칩을 눌러 원하는 원소를 고릅니다. 원소 카드를 열면 원자번호, 기호, 한국어/영어 이름, 원자량, 전자배치, 전기음성도, 밀도, 발견 연도와 짧은 설명을 확인할 수 있고, 퀴즈 풀기 버튼을 눌러 5문항 복습 퀴즈로 기억을 점검할 수 있습니다.
