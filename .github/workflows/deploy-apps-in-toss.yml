@@ -1,18 +1,22 @@
-# AIT(.ait) 빌드 + AppsInToss 배포 — ARC. org 재사용 워크플로우 호출.
+# AIT(.ait) 빌드 + AppsInToss 배포.
+# 이 저장소는 PUBLIC — org 재사용 워크플로우(rn-deploy-ait.yml)는 내부에서 ARC self-hosted
+# 러너(seorilabs-x64)로 라우팅되고, 그 러너 그룹은 allows_public_repositories=false 라
+# job이 영구 pending 된다. 그래서 happy-farm 패턴으로 self-contained 복구하고 ubuntu-latest로
+# 라우팅한다. 인증은 ${{ secrets.APPS_IN_TOSS_API_KEY }} 그대로 — org secret 가 visibility=all
+# 이라 별도 설정 없이 repo secret 처럼 동작한다.
 # dispatch 직접 실행 또는 deploy-all.yml에서 workflow_call.
-# 이 repo의 .ait 빌드/배포는 루트에서 수행(ait_dir=".").
 name: Deploy AppsInToss
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "배포할 릴리즈 태그. 비우면 호출 ref."
+        description: "배포할 릴리즈 태그(예: v1.1.0). 비우면 호출 ref."
         type: string
         required: false
         default: ""
       memo:
-        description: "배포 메모(선택)"
+        description: "배포 메모(선택, 최대 1000자)"
         type: string
         required: false
         default: ""
@@ -31,16 +35,87 @@ permissions:
   contents: read
   packages: read
 
+concurrency:
+  group: periodic-table-apps-in-toss-deploy-${{ inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  ait:
-    uses: seorilabs/.github/.github/workflows/rn-deploy-ait.yml@9afa357f9ba6c8d6a813c7cec7ad3d35c626bdd5
-    secrets:
-      APPS_IN_TOSS_API_KEY: ${{ secrets.APPS_IN_TOSS_API_KEY }}
-    with:
-      release_tag: ${{ inputs.release_tag }}
-      memo: ${{ inputs.memo }}
-      ait_dir: "."
-      package_manager: npm
-      install_command: "npm ci"
-      build_command: "npm run build"
-      artifact_path: "*.ait"
+  deploy:
+    name: Build and deploy .ait bundle
+    # public repo + ARC allows_public_repositories=false → ubuntu-latest.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: apps-in-toss
+
+    # APPS_IN_TOSS_API_KEY는 검증·배포 step에만 노출한다.
+    env:
+      APPS_IN_TOSS_INPUT_MEMO: ${{ inputs.memo }}
+      APPS_IN_TOSS_RELEASE_REF: ${{ inputs.release_tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Validate AppsInToss secret
+        shell: bash
+        env:
+          APPS_IN_TOSS_API_KEY: ${{ secrets.APPS_IN_TOSS_API_KEY }}
+        run: |
+          set -euo pipefail
+          [ -n "$APPS_IN_TOSS_API_KEY" ] || { echo "APPS_IN_TOSS_API_KEY secret is required." >&2; exit 1; }
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck shared core
+        run: npm --prefix packages/ait-core run typecheck
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test shared core
+        run: npm --prefix packages/ait-core test
+
+      - name: Test
+        run: npm test
+
+      - name: Build .ait bundle
+        run: npm run build
+
+      - name: Upload .ait artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: periodic-table-ait-bundle
+          if-no-files-found: error
+          retention-days: 3
+          path: "*.ait"
+
+      - name: Deploy to AppsInToss
+        shell: bash
+        env:
+          APPS_IN_TOSS_API_KEY: ${{ secrets.APPS_IN_TOSS_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          memo="$APPS_IN_TOSS_INPUT_MEMO"
+          short_sha="${GITHUB_SHA::7}"
+          ref_label="${APPS_IN_TOSS_RELEASE_REF:-${GITHUB_REF_NAME}}"
+
+          if [ -z "$memo" ]; then
+            memo="GitHub Actions ${ref_label}@${short_sha}"
+          fi
+
+          npm run deploy -- --api-key "$APPS_IN_TOSS_API_KEY" --memo "$memo"
