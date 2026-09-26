@@ -9,6 +9,7 @@ import {
 } from "./ads";
 import {
   trackAdImpression,
+  trackAdSkipped,
   trackElementOpen,
   trackQuizCompleted,
   trackQuizDifficultySelected,
@@ -35,8 +36,14 @@ import type {
   QuizQuestion,
   QuizQuestionType,
 } from "./quiz";
-
-type Mode = "explore" | "quiz-difficulty" | "quiz" | "quiz-result";
+import { graniteEvent } from "@apps-in-toss/web-framework";
+import {
+  clearModeState,
+  modeRequiresBackConfirm,
+  pushModeState,
+  previousModeFor,
+} from "./back-nav";
+import type { Mode } from "./back-nav";
 
 const DIFFICULTY_ORDER: QuizDifficulty[] = ["easy", "normal", "hard"];
 const DIFFICULTY_ACCENT: Record<QuizDifficulty, string> = {
@@ -94,7 +101,11 @@ function App() {
   );
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<QuizAnswer[]>([]);
+  const [pendingBackMode, setPendingBackMode] = useState<Mode | null>(null);
   const quizAdHandleRef = useRef<{ unload: () => void } | null>(null);
+  const modeRef = useRef<Mode>("explore");
+  const fromBackRef = useRef(false);
+  modeRef.current = mode;
 
   useEffect(() => {
     if (initialElement != null) {
@@ -122,6 +133,127 @@ function App() {
       quizAdHandleRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (fromBackRef.current) {
+      fromBackRef.current = false;
+      return;
+    }
+    clearModeState();
+    if (mode !== "explore") {
+      pushModeState(mode);
+    }
+  }, [mode]);
+
+  const goBack = useCallback(() => {
+    const current = modeRef.current;
+    const target = previousModeFor(current);
+    if (target == null) {
+      return;
+    }
+    if (modeRequiresBackConfirm(current)) {
+      setPendingBackMode(target);
+      return;
+    }
+    fromBackRef.current = true;
+    setMode(target);
+  }, []);
+
+  const confirmBack = () => {
+    if (pendingBackMode == null) {
+      return;
+    }
+    const target = pendingBackMode;
+    setPendingBackMode(null);
+    fromBackRef.current = true;
+    setMode(target);
+  };
+
+  const cancelBack = () => {
+    setPendingBackMode(null);
+  };
+
+  const backConfirmDialog = pendingBackMode == null ? null : (
+    <div
+      className="modal-overlay"
+      onClick={cancelBack}
+      role="presentation"
+    >
+      <div
+        aria-modal="true"
+        aria-labelledby="back-confirm-title"
+        className="modal-card"
+        role="dialog"
+      >
+        <h3 id="back-confirm-title">퀴즈를 중단하시겠어요?</h3>
+        <p>
+          지금까지 푼 문제는 저장되지 않아요. 확인을 누르면 난이도 선택 화면으로
+          돌아갑니다.
+        </p>
+        <div className="modal-actions">
+          <Button
+            color="dark"
+            display="block"
+            onClick={cancelBack}
+            variant="weak"
+          >
+            계속 풀기
+          </Button>
+          <Button display="block" onClick={confirmBack}>
+            중단하고 돌아가기
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const onPopState = () => {
+      // graniteEvent가 등록된 환경(토스앱)에서는 시스템 백이 popstate를 트리거하지
+      // 않으므로 여기까지 오면 dev preview / 외부 브라우저. 이전 모드로 단순 복귀.
+      const target = previousModeFor(modeRef.current);
+      if (target != null) {
+        fromBackRef.current = true;
+        setMode(target);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof graniteEvent === "undefined") {
+      return;
+    }
+    const cleanup = graniteEvent.addEventListener("backEvent", {
+      onEvent: () => {
+        goBack();
+      },
+      onError: (error) => {
+        if (typeof console !== "undefined") {
+          console.warn("[back-nav] graniteEvent error", error);
+        }
+      },
+    });
+    return () => {
+      cleanup();
+    };
+  }, [goBack]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !import.meta.env.DEV) {
+      return;
+    }
+    (window as Window & { __appBack__?: () => void }).__appBack__ = goBack;
+  }, [goBack]);
 
   useEffect(() => {
     if (mode !== "quiz") {
@@ -199,8 +331,8 @@ function App() {
     [],
   );
 
-  const finishQuiz = useCallback(
-    async (finalAnswers: QuizAnswer[]) => {
+  const finalizeQuiz = useCallback(
+    (finalAnswers: QuizAnswer[]) => {
       const score = finalAnswers.filter((answer) => answer.correct).length;
       const questionTypes = finalAnswers.map(
         (answer) => answer.type,
@@ -211,21 +343,31 @@ function App() {
         difficulty: quizDifficulty,
         questionTypes,
       });
-
-      const adResult = await showInterstitialAd({
-        onAdImpression: (adGroupId) => {
-          trackAdImpression({ placement: "quiz_result", adGroupId });
-        },
-      });
-      if (typeof console !== "undefined" && !adResult.shown) {
-        console.info("[ads] skipped", adResult.reason);
-      }
-
-      setMode("quiz-result");
+      setMode("quiz-ad-gate");
       scrollToTop();
     },
     [quizDifficulty],
   );
+
+  const enterResult = useCallback((withAd: boolean) => {
+    if (withAd) {
+      void showInterstitialAd({
+        onAdImpression: (adGroupId) => {
+          trackAdImpression({ placement: "quiz_result", adGroupId });
+        },
+      }).then((result) => {
+        if (typeof console !== "undefined" && !result.shown) {
+          console.info("[ads] skipped", result.reason);
+        }
+        setMode("quiz-result");
+        scrollToTop();
+      });
+      return;
+    }
+    trackAdSkipped({ placement: "quiz_result" });
+    setMode("quiz-result");
+    scrollToTop();
+  }, []);
 
   const answerQuiz = (symbol: string) => {
     const question = currentQuizQuestion;
@@ -240,7 +382,7 @@ function App() {
     setQuizAnswers(nextAnswers);
 
     if (quizIndex === quizQuestions.length - 1) {
-      void finishQuiz(nextAnswers);
+      finalizeQuiz(nextAnswers);
       return;
     }
 
@@ -287,6 +429,7 @@ function App() {
         >
           원소표로 돌아가기
         </Button>
+        {backConfirmDialog}
       </main>
     );
   }
@@ -350,6 +493,61 @@ function App() {
         >
           원소표로 돌아가기
         </Button>
+        {backConfirmDialog}
+      </main>
+    );
+  }
+
+  if (mode === "quiz-ad-gate") {
+    return (
+      <main className="app-screen">
+        <Top
+          lowerGap={16}
+          title={
+            <Top.TitleParagraph size={22}>퀴즈 완료</Top.TitleParagraph>
+          }
+          subtitleBottom={
+            <Top.SubtitleParagraph size={17}>
+              {DIFFICULTY_LABELS[quizDifficulty].label} ·{" "}
+              {quizAnswers.length}문제 풀었어요. 결과 화면으로 가기 전에
+              잠깐 안내를 드려요.
+            </Top.SubtitleParagraph>
+          }
+        />
+        <section className="ad-notice" aria-label="광고 안내">
+          <strong>잠시 후 전면광고가 표시돼요</strong>
+          <p>
+            퀴즈 종료 후 1회 전면광고가 노출됩니다. 광고를 보지 않고 바로 결과만
+            확인할 수도 있어요. 광고를 누르면 외부 페이지로 이동할 수 있으니
+            이 점을 미리 알아 두세요.
+          </p>
+        </section>
+        <section className="action-section">
+          <Button
+            display="full"
+            onClick={() => enterResult(true)}
+            size="large"
+          >
+            광고 보고 결과 보기
+          </Button>
+          <Button
+            color="dark"
+            display="full"
+            onClick={() => enterResult(false)}
+            variant="weak"
+          >
+            광고 없이 결과 보기
+          </Button>
+        </section>
+        <Button
+          color="dark"
+          display="full"
+          onClick={() => setMode("explore")}
+          variant="weak"
+        >
+          원소표로 돌아가기
+        </Button>
+        {backConfirmDialog}
       </main>
     );
   }
@@ -420,6 +618,7 @@ function App() {
             원소표 보기
           </Button>
         </section>
+        {backConfirmDialog}
       </main>
     );
   }
@@ -609,6 +808,7 @@ function App() {
       <p className="source-note">
         데이터 기준: {DATA_SOURCE.name} / {KOREAN_NAME_SOURCE.name}
       </p>
+      {backConfirmDialog}
     </main>
   );
 }

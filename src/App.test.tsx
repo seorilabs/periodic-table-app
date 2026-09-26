@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import App from "./App";
 import { DATA_SOURCE, ELEMENTS, KOREAN_NAME_SOURCE } from "./data/elements";
 import type { ElementInfo } from "./data/elements";
+import { triggerAitBackEvent } from "./test/setup";
 
 const testUserAgent = {
   fontA11y: undefined,
@@ -108,7 +109,7 @@ describe("원소 주기율표 앱", () => {
     expect(screen.getByLabelText("퀴즈 난이도")).toBeInTheDocument();
   });
 
-  it("쉬움 난이도 퀴즈를 풀고 결과 화면을 보여준다", async () => {
+  it("쉬움 난이도 퀴즈를 풀고 광고 게이트에서 광고 없이 결과로 진입한다", async () => {
     const user = renderApp();
 
     await user.click(screen.getByRole("button", { name: "퀴즈 풀기" }));
@@ -132,9 +133,16 @@ describe("원소 주기율표 앱", () => {
       await user.click(getQuizOptionByElement(element));
     }
 
+    // 마지막 답 직후 광고 게이트가 먼저 보여야 한다 (예측 가능한 노출 시점)
     await waitFor(() => {
-      expect(screen.getByText("5/5점")).toBeInTheDocument();
+      expect(
+        screen.getByText(/잠시 후 전면광고가 표시돼요/u),
+      ).toBeInTheDocument();
     });
+    expect(screen.getByRole("button", { name: "광고 보고 결과 보기" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "광고 없이 결과 보기" }),
+    ).toBeInTheDocument();
 
     expect(Analytics.click).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -144,9 +152,88 @@ describe("원소 주기율표 앱", () => {
         difficulty: "easy",
       }),
     );
+
+    // 광고 없이 결과로 진입
+    await user.click(screen.getByRole("button", { name: "광고 없이 결과 보기" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("5/5점")).toBeInTheDocument();
+    });
+    expect(Analytics.click).toHaveBeenCalledWith(
+      expect.objectContaining({
+        log_name: "periodic_table_ad_skipped",
+        placement: "quiz_result",
+      }),
+    );
+  });
+
+  it("난이도 선택에서 백버튼을 누르면 원소표로 돌아간다", async () => {
+    const user = renderApp();
+
+    await user.click(screen.getByRole("button", { name: "퀴즈 풀기" }));
     expect(
-      screen.queryByRole("button", { name: /공유/u }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("heading", { name: "퀴즈 난이도 선택" }),
+    ).toBeInTheDocument();
+
+    triggerAitBackEvent();
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "퀴즈 난이도 선택" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("원소 주기율표")).toBeInTheDocument();
+  });
+
+  it("퀴즈 진행 중 백버튼을 누르면 confirm dialog가 뜨고 취소 시 퀴즈가 유지된다", async () => {
+    const user = renderApp();
+
+    await user.click(screen.getByRole("button", { name: "퀴즈 풀기" }));
+    await user.click(screen.getByRole("button", { name: /쉬움/u }));
+    expect(screen.getByLabelText("퀴즈 선택지")).toBeInTheDocument();
+
+    triggerAitBackEvent();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/퀴즈를 중단하시겠어요\?/u),
+      ).toBeInTheDocument();
+    });
+
+    // 취소
+    await user.click(screen.getByRole("button", { name: "계속 풀기" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/퀴즈를 중단하시겠어요\?/u),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("퀴즈 선택지")).toBeInTheDocument();
+  });
+
+  it("퀴즈 진행 중 백버튼 confirm에서 확인을 누르면 난이도 선택으로 돌아간다", async () => {
+    const user = renderApp();
+
+    await user.click(screen.getByRole("button", { name: "퀴즈 풀기" }));
+    await user.click(screen.getByRole("button", { name: /쉬움/u }));
+    triggerAitBackEvent();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/퀴즈를 중단하시겠어요\?/u),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "중단하고 돌아가기" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "퀴즈 난이도 선택" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByLabelText("퀴즈 선택지")).not.toBeInTheDocument();
   });
 });
 
