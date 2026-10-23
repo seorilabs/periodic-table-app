@@ -3,20 +3,20 @@ import {
   showFullScreenAd,
 } from "@apps-in-toss/web-framework";
 
-const DEFAULT_AD_GROUP_ID = "ait-ad-test-interstitial-id";
+import { resolveAdGroupId } from "./ad-config";
+
 const AD_SHOW_TIMEOUT_MS = 5_000;
 
 export interface ShowAdResult {
   shown: boolean;
-  reason: "shown" | "dismissed" | "failed" | "timeout" | "unsupported";
+  reason: "dismissed" | "failed" | "timeout" | "unsupported" | "not_loaded";
 }
 
 export function getAdGroupId(): string {
-  const fromEnv = import.meta.env.VITE_AIT_AD_GROUP_ID;
-  if (typeof fromEnv === "string" && fromEnv.trim().length > 0) {
-    return fromEnv;
-  }
-  return DEFAULT_AD_GROUP_ID;
+  return resolveAdGroupId(
+    import.meta.env.VITE_AIT_AD_GROUP_ID,
+    import.meta.env.PROD,
+  );
 }
 
 export function isAdSupported(): boolean {
@@ -31,49 +31,84 @@ export interface LoadAdOptions {
 }
 
 export interface LoadAdHandle {
+  adGroupId: string;
   loaded: boolean;
+  ready: Promise<boolean>;
   unload: () => void;
 }
 
 export function loadInterstitialAd(options: LoadAdOptions = {}): LoadAdHandle {
+  let resolveReady!: (loaded: boolean) => void;
   const handle: LoadAdHandle = {
+    adGroupId: options.adGroupId ?? getAdGroupId(),
     loaded: false,
-    unload: () => {},
+    ready: new Promise<boolean>((resolve) => {
+      resolveReady = resolve;
+    }),
+    unload: () => {
+      resolveReady(false);
+    },
   };
 
   if (!isAdSupported()) {
-    options.onError?.(new Error("Full-screen ad is not supported in this environment."));
+    resolveReady(false);
+    options.onError?.(
+      new Error("Full-screen ad is not supported in this environment."),
+    );
     return handle;
   }
 
-  handle.unload = loadFullScreenAd({
-    options: { adGroupId: options.adGroupId ?? getAdGroupId() },
+  let disposed = false;
+  const unregister = loadFullScreenAd({
+    options: { adGroupId: handle.adGroupId },
     onEvent: (event) => {
-      if (event.type === "loaded") {
+      if (!disposed && event.type === "loaded") {
         handle.loaded = true;
+        resolveReady(true);
         options.onLoaded?.();
       }
     },
     onError: (error) => {
+      if (disposed) return;
       handle.loaded = false;
+      resolveReady(false);
       options.onError?.(error);
     },
   });
+  handle.unload = () => {
+    if (disposed) return;
+    disposed = true;
+    handle.loaded = false;
+    resolveReady(false);
+    unregister();
+  };
 
   return handle;
 }
 
-export function showInterstitialAd(options: {
-  adGroupId?: string;
+export async function showInterstitialAd(options: {
+  ad: LoadAdHandle;
   onShown?: () => void;
   onAdImpression?: (adGroupId: string) => void;
   onError?: (reason: ShowAdResult["reason"]) => void;
 }): Promise<ShowAdResult> {
-  const adGroupId = options.adGroupId ?? getAdGroupId();
+  const { ad } = options;
+  const adGroupId = ad.adGroupId;
 
   if (!isAdSupported()) {
     options.onError?.("unsupported");
-    return Promise.resolve({ shown: false, reason: "unsupported" });
+    return { shown: false, reason: "unsupported" };
+  }
+
+  const loaded = await new Promise<boolean>((resolve) => {
+    const timeoutId = setTimeout(() => resolve(false), AD_SHOW_TIMEOUT_MS);
+    void ad.ready.then((ready) => {
+      clearTimeout(timeoutId);
+      resolve(ready);
+    });
+  });
+  if (!loaded || !ad.loaded) {
+    return { shown: false, reason: "not_loaded" };
   }
 
   return new Promise<ShowAdResult>((resolve) => {
@@ -94,9 +129,11 @@ export function showInterstitialAd(options: {
       onEvent: (event) => {
         switch (event.type) {
           case "show":
+            clearTimeout(timeoutId);
             options.onShown?.();
             break;
           case "impression":
+            clearTimeout(timeoutId);
             options.onAdImpression?.(adGroupId);
             break;
           case "dismissed":

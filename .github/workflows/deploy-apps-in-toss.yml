@@ -93,6 +93,8 @@ jobs:
         run: npm test
 
       - name: Build .ait bundle
+        env:
+          VITE_AIT_AD_GROUP_ID: ${{ vars.VITE_AIT_AD_GROUP_ID }}
         run: npm run build
 
       - name: Upload .ait artifact
