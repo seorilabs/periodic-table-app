@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "level": "L1",
+  "baseline": "96749096ef7b8bfe4fc168f8835a619f859f41f1",
+  "changedFeatures": [
+    "element-exploration",
+    "search-filter",
+    "quiz",
+    "quiz-ads",
+    "back-navigation",
+    "recent-element",
+    "analytics"
+  ],
+  "environments": ["dev"],
+  "redesign": false,
+  "foundationRerun": false,
+  "floorOverrides": [
+    {
+      "rule": "foundation",
+      "featureId": "quiz-ads",
+      "reason": "기존 SDK 3.5.0을 유지한 운영 ID 주입과 로드 및 종료 대기 흐름 복구다. SDK 대체 구현의 실패와 취소와 타임아웃, 개발 화면의 미지원 처리를 검증하고 테스트 업로드까지만 진행한다. 실제 토스 광고 노출은 미실행으로 보존하며 심사 제출과 공개를 승인하지 않는다."
+    },
+    {
+      "rule": "foundation",
+      "featureId": "recent-element",
+      "reason": "저장 호출을 포함한 공용 App.tsx의 광고 처리 경로가 변경됐으나 저장 SDK와 저장 형식은 변경하지 않았다. 공통 모듈 검사와 격리 개발 브라우저의 저장 및 복원으로 확인하고 테스트 업로드까지만 진행한다. 기기에서의 저장 SDK 실행은 미실행으로 보존한다."
+    }
+  ],
+  "release": {
+    "markets": ["apps-in-toss"],
+    "until": "test-track"
+  }
+}
