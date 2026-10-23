@@ -1,8 +1,13 @@
-import { Analytics, Screen } from "@apps-in-toss/web-framework";
+import {
+  Analytics,
+  loadFullScreenAd,
+  Screen,
+  showFullScreenAd,
+} from "@apps-in-toss/web-framework";
 import { TDSMobileProvider } from "@toss/tds-mobile";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import { DATA_SOURCE, ELEMENTS, KOREAN_NAME_SOURCE } from "./data/elements";
@@ -109,7 +114,7 @@ describe("원소 주기율표 앱", () => {
     expect(screen.getByLabelText("퀴즈 난이도")).toBeInTheDocument();
   });
 
-  it("쉬움 난이도 퀴즈를 풀고 광고 게이트에서 광고 없이 결과로 진입한다", async () => {
+  it("광고 미지원 환경에서 쉬움 난이도 퀴즈 결과로 바로 진입한다", async () => {
     const user = renderApp();
 
     await user.click(screen.getByRole("button", { name: "퀴즈 풀기" }));
@@ -147,6 +152,57 @@ describe("원소 주기율표 앱", () => {
         difficulty: "easy",
       }),
     );
+  });
+
+  it("마지막 답 중복 입력을 막고 광고 로드와 닫기를 기다린 뒤 결과를 보여준다", async () => {
+    const supported = vi
+      .spyOn(loadFullScreenAd, "isSupported")
+      .mockReturnValue(true);
+    try {
+      const user = renderApp("/quiz");
+      await user.click(screen.getByRole("button", { name: /쉬움/u }));
+      for (let index = 0; index < 4; index += 1) {
+        await user.click(getQuizOptionByElement(getCurrentQuizElement()));
+      }
+      const lastOption = getQuizOptionByElement(getCurrentQuizElement());
+      await user.click(lastOption);
+      await user.click(lastOption);
+      expect(showFullScreenAd).not.toHaveBeenCalled();
+      expect(screen.queryByText("5/5점")).not.toBeInTheDocument();
+      expect(
+        vi
+          .mocked(Analytics.click)
+          .mock.calls.filter(
+            ([event]) => event?.log_name === "periodic_table_quiz_completed",
+          ),
+      ).toHaveLength(1);
+
+      act(() => {
+        vi.mocked(loadFullScreenAd).mock.calls[0][0].onEvent({
+          type: "loaded",
+        });
+      });
+      await waitFor(() => expect(showFullScreenAd).toHaveBeenCalledTimes(1));
+      const show = vi.mocked(showFullScreenAd).mock.calls[0][0];
+      act(() => {
+        show.onEvent({ type: "impression" });
+      });
+      expect(Analytics.click).toHaveBeenCalledWith(
+        expect.objectContaining({
+          log_name: "periodic_table_ad_impression",
+          placement: "quiz_result",
+        }),
+      );
+      expect(screen.queryByText("5/5점")).not.toBeInTheDocument();
+      act(() => {
+        show.onEvent({ type: "dismissed" });
+      });
+      await waitFor(() =>
+        expect(screen.getByText("5/5점")).toBeInTheDocument(),
+      );
+    } finally {
+      supported.mockRestore();
+    }
   });
 
   it("마지막 문항에 광고 안내가 표시되고 이전 문항에는 표시되지 않는다", async () => {

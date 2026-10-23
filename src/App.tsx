@@ -7,6 +7,7 @@ import {
   loadInterstitialAd,
   showInterstitialAd,
 } from "./ads";
+import type { LoadAdHandle } from "./ads";
 import {
   trackAdImpression,
   trackElementOpen,
@@ -102,7 +103,8 @@ function App() {
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<QuizAnswer[]>([]);
   const [pendingBackMode, setPendingBackMode] = useState<Mode | null>(null);
-  const quizAdHandleRef = useRef<{ unload: () => void } | null>(null);
+  const quizAdHandleRef = useRef<LoadAdHandle | null>(null);
+  const quizFinishingRef = useRef(false);
   const modeRef = useRef<Mode>("explore");
   const fromBackRef = useRef(false);
   modeRef.current = mode;
@@ -273,7 +275,7 @@ function App() {
         }
       },
     });
-    quizAdHandleRef.current = { unload: handle.unload };
+    quizAdHandleRef.current = handle;
 
     return () => {
       handle.unload();
@@ -324,6 +326,7 @@ function App() {
 
   const startQuiz = useCallback(
     (difficulty: QuizDifficulty) => {
+      quizFinishingRef.current = false;
       trackQuizDifficultySelected({ difficulty });
       setQuizDifficulty(difficulty);
       setQuizQuestions(buildQuizRound(difficulty));
@@ -348,12 +351,22 @@ function App() {
         questionTypes,
       });
 
-      const adResult = await showInterstitialAd({
-        onAdImpression: (adGroupId) => {
-          trackAdImpression({ placement: "quiz_result", adGroupId });
-        },
-      });
-      if (typeof console !== "undefined" && !adResult.shown) {
+      const ad = quizAdHandleRef.current;
+      const adResult =
+        ad == null
+          ? null
+          : await showInterstitialAd({
+              ad,
+              onAdImpression: (adGroupId) => {
+                trackAdImpression({ placement: "quiz_result", adGroupId });
+              },
+            });
+      if (quizAdHandleRef.current !== ad) return;
+      if (
+        typeof console !== "undefined" &&
+        adResult != null &&
+        !adResult.shown
+      ) {
         console.info("[ads] skipped", adResult.reason);
       }
 
@@ -364,6 +377,7 @@ function App() {
   );
 
   const answerQuiz = (symbol: string) => {
+    if (quizFinishingRef.current) return;
     const question = currentQuizQuestion;
     const answer: QuizAnswer = {
       questionId: question.id,
@@ -376,6 +390,7 @@ function App() {
     setQuizAnswers(nextAnswers);
 
     if (quizIndex === quizQuestions.length - 1) {
+      quizFinishingRef.current = true;
       void finishQuiz(nextAnswers);
       return;
     }

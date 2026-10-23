@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "features": [
+    {
+      "id": "element-exploration",
+      "core": true,
+      "paths": ["src/App.tsx", "src/data/elements.ts", "src/index.css"]
+    },
+    {
+      "id": "search-filter",
+      "core": true,
+      "paths": ["src/App.tsx", "src/data/elements.ts"]
+    },
+    {
+      "id": "quiz",
+      "core": true,
+      "paths": ["src/App.tsx", "src/quiz.ts"]
+    },
+    {
+      "id": "quiz-ads",
+      "core": false,
+      "foundation": true,
+      "paths": ["src/ads.ts", "src/ad-config.ts", "src/App.tsx", "vite.config.ts", ".github/workflows/deploy-apps-in-toss.yml"]
+    },
+    {
+      "id": "back-navigation",
+      "core": true,
+      "paths": ["src/App.tsx", "src/back-nav.ts"]
+    },
+    {
+      "id": "recent-element",
+      "core": false,
+      "foundation": true,
+      "paths": ["src/App.tsx", "packages/ait-core/src/index.ts"]
+    },
+    {
+      "id": "analytics",
+      "core": false,
+      "paths": ["src/analytics.ts", "packages/ait-core/src/index.ts", "src/App.tsx"]
+    }
+  ]
+}
