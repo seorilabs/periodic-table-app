@@ -6,6 +6,7 @@ import {
 import { resolveAdGroupId } from "./ad-config";
 
 const AD_SHOW_TIMEOUT_MS = 5_000;
+const AD_DISMISS_TIMEOUT_MS = 120_000;
 
 export interface ShowAdResult {
   shown: boolean;
@@ -120,20 +121,29 @@ export async function showInterstitialAd(options: {
       resolve(result);
     };
 
-    const timeoutId = setTimeout(() => {
+    let timeoutId = setTimeout(() => {
       settle({ shown: false, reason: "timeout" });
     }, AD_SHOW_TIMEOUT_MS);
+    let presented = false;
+    const markPresented = () => {
+      if (settled || presented) return;
+      presented = true;
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        settle({ shown: true, reason: "timeout" });
+      }, AD_DISMISS_TIMEOUT_MS);
+    };
 
     showFullScreenAd({
       options: { adGroupId },
       onEvent: (event) => {
         switch (event.type) {
           case "show":
-            clearTimeout(timeoutId);
+            markPresented();
             options.onShown?.();
             break;
           case "impression":
-            clearTimeout(timeoutId);
+            markPresented();
             options.onAdImpression?.(adGroupId);
             break;
           case "dismissed":

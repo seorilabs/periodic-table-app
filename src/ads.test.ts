@@ -91,4 +91,17 @@ describe("퀴즈 전면광고", () => {
     });
     ad.unload();
   });
+
+  it("닫힘 알림이 유실돼도 표시 후 2분 안에 대기를 끝낸다", async () => {
+    const ad = loadInterstitialAd({ adGroupId });
+    vi.mocked(loadFullScreenAd).mock.calls[0][0].onEvent({ type: "loaded" });
+    const result = showInterstitialAd({ ad });
+    await vi.advanceTimersByTimeAsync(0);
+    const show = vi.mocked(showFullScreenAd).mock.calls[0][0];
+    show.onEvent({ type: "show" });
+    show.onEvent({ type: "impression" });
+    await vi.advanceTimersByTimeAsync(120_000);
+    await expect(result).resolves.toEqual({ shown: true, reason: "timeout" });
+    ad.unload();
+  });
 });

@@ -5,7 +5,7 @@ import { defineConfig, loadEnv } from "vite";
 import { resolveAdGroupId } from "./src/ad-config";
 
 export default defineConfig(({ mode, command }) => {
-  if (command === "build" && mode === "production") {
+  if (command === "build" && process.env.NODE_ENV === "production") {
     const env = loadEnv(mode, process.cwd(), "VITE_");
     resolveAdGroupId(env.VITE_AIT_AD_GROUP_ID, true);
   }
